@@ -1,0 +1,64 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+  margin: 0;
+}
+
+header {
+  background: #020617;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+}
+
+a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+main {
+  padding: 20px;
+  display: grid;
+  gap: 20px;
+}
+
+.card {
+  background: #020617;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+button {
+  background: #2563eb;
+  color: white;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.login-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.login-box {
+  background: #020617;
+  padding: 30px;
+  border-radius: 10px;
+  width: 260px;
+}
+
+.login-box input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px;
+}
+
+.qr-page {
+  text-align: center;
+  padding: 20px;
+}
