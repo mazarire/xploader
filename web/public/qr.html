@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scan QR</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="qr-page">
+  <h3>Scan WhatsApp QR</h3>
+
+  <canvas id="qr"></canvas>
+  <p>WhatsApp → Linked Devices → Link a device</p>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+  <script>
+    const socket = io()
+
+    socket.on("qr", data => {
+      QRCode.toCanvas(
+        document.getElementById("qr"),
+        data.qr
+      )
+    })
+
+    socket.on("qr-scanned", () => {
+      document.body.innerHTML = "<h2>✅ Connected</h2>"
+    })
+  </script>
+</body>
+</html>
