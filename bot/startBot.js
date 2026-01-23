@@ -5,11 +5,12 @@ import makeWASocket, {
 
 import fs from "fs"
 import { io } from "../web/server.js"
-import { messageHandler } from "./core/handler.js"
+import { loadPlugins, getPlugins } from "./plugins/index.js"
+
+loadPlugins()
 
 export async function startBot(id, config) {
   const sessionPath = `./sessions/${id}`
-
   if (!fs.existsSync(sessionPath)) {
     fs.mkdirSync(sessionPath, { recursive: true })
   }
@@ -25,59 +26,65 @@ export async function startBot(id, config) {
 
   let hasConnectedOnce = false
 
-  /* ---------- SAVE SESSION ---------- */
   sock.ev.on("creds.update", saveCreds)
 
-  /* ---------- CONNECTION + QR LOGIC ---------- */
-  sock.ev.on("connection.update", (update) => {
-    const { connection, qr, lastDisconnect } = update
+  /* QR + PAIRING */
+  if (!state.creds.registered && config.pairingNumber) {
+    setTimeout(async () => {
+      const code = await sock.requestPairingCode(
+        config.pairingNumber
+      )
+      io.emit("pairing-code", code)
+    }, 3000)
+  }
 
-    // 📸 QR GENERATED
+  sock.ev.on("connection.update", update => {
+    const { qr, connection, lastDisconnect } = update
+
     if (qr) {
-      console.log("📸 QR GENERATED")
       io.emit("qr", qr)
       return
     }
 
-    // ✅ CONNECTED
     if (connection === "open") {
-      console.log("✅ WhatsApp connected")
       hasConnectedOnce = true
       io.emit("qr-scanned")
       return
     }
 
-    // ❌ DISCONNECTED
     if (connection === "close") {
-      const reason =
-        lastDisconnect?.error?.output?.statusCode
-
-      console.log("❌ Connection closed. Reason:", reason)
-
-      // ⛔ Do NOT reconnect while waiting for QR scan
-      if (!hasConnectedOnce) {
-        console.log("⏳ Waiting for QR scan — not reconnecting")
-        return
-      }
-
-      // 🔁 Reconnect only if previously connected
-      if (reason !== DisconnectReason.loggedOut) {
-        console.log("🔁 Reconnecting WhatsApp...")
+      if (!hasConnectedOnce) return
+      if (
+        lastDisconnect?.error?.output?.statusCode !==
+        DisconnectReason.loggedOut
+      ) {
         startBot(id, config)
-      } else {
-        console.log("🚪 Logged out — new QR required")
       }
     }
   })
 
-  /* ---------- MESSAGE HANDLER ---------- */
-  sock.ev.on("messages.upsert", async (msg) => {
-    await messageHandler(sock, msg)
+  /* PLUGIN HANDLER */
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const msg = messages[0]
+    if (!msg?.message || msg.key.fromMe) return
+
+    const text =
+      msg.message.conversation ||
+      msg.message.extendedTextMessage?.text
+
+    if (!text || !text.startsWith(".")) return
+
+    const cmd = text.slice(1).split(" ")[0].toLowerCase()
+
+    for (const plugin of getPlugins()) {
+      if (plugin.command.includes(cmd)) {
+        await plugin.run({ sock, msg, text })
+        break
+      }
+    }
   })
 
   return sock
 }
-
-
 
 
