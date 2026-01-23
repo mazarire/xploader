@@ -1,84 +1,71 @@
 import makeWASocket, {
-  DisconnectReason,
   useMultiFileAuthState,
-  fetchLatestBaileysVersion
+  DisconnectReason
 } from "@whiskeysockets/baileys"
 
-import Pino from "pino"
 import fs from "fs"
-import path from "path"
 import { io } from "../web/server.js"
+import { messageHandler } from "./core/handler.js"
 
-export async function startBot(id, config = {}) {
-  const authDir = path.resolve(`./sessions/${id}`)
-  if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true })
+export async function startBot(id, config) {
+  try {
+    const sessionPath = `./sessions/${id}`
 
-  const { state, saveCreds } = await useMultiFileAuthState(authDir)
-  const { version } = await fetchLatestBaileysVersion()
-
-  const sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false,
-    logger: Pino({ level: "silent" }),
-    browser: ["NovaX-MD", "Chrome", "1.0"]
-  })
-
-  // 🔐 Save session
-  sock.ev.on("creds.update", saveCreds)
-
-  // 📸 QR CODE EVENT
-  sock.ev.on("connection.update", update => {
-    const { qr, connection, lastDisconnect } = update
-
-    if (qr) {
-      console.log(`[${id}] QR RECEIVED`)
-      io.emit("qr", qr)
+    if (!fs.existsSync(sessionPath)) {
+      fs.mkdirSync(sessionPath, { recursive: true })
     }
 
-    if (connection === "open") {
-      console.log(`[${id}] Connected to WhatsApp`)
-      io.emit("status", "connected")
-    }
+    const { state, saveCreds } =
+      await useMultiFileAuthState(sessionPath)
 
-    if (connection === "close") {
-      const reason =
-        lastDisconnect?.error?.output?.statusCode
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: true,
+      browser: ["NovaX-MD", "Chrome", "1.0"]
+    })
 
-      console.log(`[${id}] Disconnected (${reason})`)
+    /* ---------- SAVE SESSION ---------- */
+    sock.ev.on("creds.update", saveCreds)
 
-      if (reason !== DisconnectReason.loggedOut) {
-        console.log(`[${id}] Reconnecting...`)
-        startBot(id, config)
-      } else {
-        console.log(`[${id}] Logged out`)
+    /* ---------- CONNECTION + QR ---------- */
+    sock.ev.on("connection.update", (update) => {
+      const { connection, qr, lastDisconnect } = update
+
+      if (qr) {
+        console.log("📸 QR GENERATED")
+        io.emit("qr", qr)
       }
-    }
-  })
 
-  // 📩 MESSAGE HANDLER (basic)
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0]
-    if (!msg.message || msg.key.fromMe) return
+      if (connection === "open") {
+        console.log("✅ WhatsApp connected")
+        io.emit("qr-scanned")
+      }
 
-    const text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text
+      if (connection === "close") {
+        const shouldReconnect =
+          lastDisconnect?.error?.output?.statusCode !==
+          DisconnectReason.loggedOut
 
-    if (!text) return
+        console.log(
+          "❌ Connection closed. Reconnect:",
+          shouldReconnect
+        )
 
-    if (text === ".menu") {
-      await sock.sendMessage(msg.key.remoteJid, {
-        text: "🔥 NovaX-MD Menu\n\n.menu\n.ping\n.alive"
-      })
-    }
+        if (shouldReconnect) {
+          startBot(id, config)
+        }
+      }
+    })
 
-    if (text === ".ping") {
-      await sock.sendMessage(msg.key.remoteJid, {
-        text: "🏓 Pong!"
-      })
-    }
-  })
+    /* ---------- MESSAGE HANDLER ---------- */
+    sock.ev.on("messages.upsert", async (msg) => {
+      await messageHandler(sock, msg)
+    })
 
-  return sock
+    return sock
+  } catch (err) {
+    console.error("❌ Failed to start bot:", err)
+  }
 }
+
+
