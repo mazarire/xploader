@@ -1,4 +1,9 @@
-export default async (sock, msg) => {
-  if (msg.message.conversation === ".ping")
-    await sock.sendMessage(msg.key.remoteJid, { text: "🏓 Pong" })
+export default {
+  command: ["ping"],
+  desc: "Ping test",
+  run: async ({ sock, msg }) => {
+    await sock.sendMessage(msg.key.remoteJid, {
+      text: "🏓 Pong!"
+    })
+  }
 }
