@@ -1,26 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Scan QR</title>
+  <title>WhatsApp QR</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+    }
+    img {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+    }
+  </style>
 </head>
-<body style="display:flex;justify-content:center;align-items:center;height:100vh">
 
-  <div>
-    <h2>Scan QR to connect WhatsApp</h2>
-    <img id="qr-img" width="300" />
-  </div>
+<body>
 
+  <h2>Scan QR to connect WhatsApp</h2>
+  <img id="qr-img" width="300" height="300" />
+
+  <!-- IMPORTANT: use correct socket.io client -->
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io()
+    const socket = io({
+      transports: ["websocket", "polling"]
+    })
+
+    socket.on("connect", () => {
+      console.log("✅ Socket connected:", socket.id)
+    })
 
     socket.on("qr", qr => {
-      console.log("QR received in browser")
-      document.getElementById("qr-img").src =
-        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`
+      console.log("📱 QR received in browser")
+
+      const img = document.getElementById("qr-img")
+      img.src =
+        "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" +
+        encodeURIComponent(qr)
     })
   </script>
 
 </body>
 </html>
+
